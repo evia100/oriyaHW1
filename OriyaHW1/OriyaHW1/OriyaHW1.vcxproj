@@ -140,6 +140,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="bp.cpp" />
+    <ClCompile Include="bp_main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="bp_api.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
