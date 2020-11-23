@@ -2,15 +2,11 @@
 /* This file should hold your implementation of the predictor simulator */
 
 #include "bp_api.h"
-#include <array>
-#include <vector>
-#include <bitset>
 #include "math.h"
 #include <stdio.h> 
-
-static BTB BP_Table;
 using namespace std;
-
+class BTB;
+BTB* BP_Table;
 
 int bitExtracted(int number, int k, int p)
 {
@@ -25,10 +21,10 @@ public:
 	unsigned int tag;
 	unsigned int target;
 	unsigned int history;
-}
-;
+};
 
 class BTB {
+public:
 	BTB(unsigned btbSize, unsigned historySize, unsigned tagSize, unsigned fsmState,
 		bool isGlobalHist, bool isGlobalTable, int Shared) :
 		btbSize_(btbSize), historySize_(historySize), tagSize_(tagSize),
@@ -39,7 +35,7 @@ class BTB {
 		{
 
 		}
-
+		
 		int** fsm = new int* [btbSize_];
 		for (int j = 0; j < btbSize_; j++)
 		{
@@ -61,7 +57,8 @@ class BTB {
 
 	void updatefsm(int mappingplace, bool taken)
 	{
-		int state = BP_Table.fsm[mappingplace][BP_Table.BTBTable[mappingplace].history];
+		
+		int state = (*BP_Table).fsm[mappingplace][(*BP_Table).BTBTable[mappingplace].history];
 		if (state == 3 && taken) return;
 		else if (state == 0 && !taken) return;
 		else
@@ -70,7 +67,7 @@ class BTB {
 			else state--;
 		}
 	}
-public:
+
 	unsigned btbSize_;
 	unsigned historySize_;
 	unsigned tagSize_;
@@ -82,13 +79,15 @@ public:
 	int** fsm;
 };
 
+
+
 int BP_init(unsigned btbSize, unsigned historySize, unsigned tagSize, unsigned fsmState,
 	bool isGlobalHist, bool isGlobalTable, int Shared)
 {
 	try
 	{
 		// Check
-		BP_Table(btbSize, historySize, tagSize, fsmState, isGlobalHist, isGlobalTable, Shared);
+		BP_Table= new BTB(btbSize, historySize, tagSize, fsmState, isGlobalHist, isGlobalTable, Shared);
 	}
 	catch (...)
 	{
@@ -100,60 +99,62 @@ int BP_init(unsigned btbSize, unsigned historySize, unsigned tagSize, unsigned f
 
 bool BP_predict(uint32_t pc, uint32_t* dst)
 {
-	int mappingplace = bitExtracted(pc, log2(BP_Table.btbSize_), 3);
-	if (!BP_Table[mappingplace].validbit)
+	int mappingplace = bitExtracted(pc, log2((*BP_Table).btbSize_), 3);
+	if (!(*BP_Table).BTBTable[mappingplace].validbit)
 	{
 		*dst = pc + 4; //check
 		return false;
 	}
 
-	int offset = BP_Table[mappingplace].history;
-	bool prediction = *(BP_Table.fsm[mappingplace] + offset);
+	int offset = (*BP_Table).BTBTable[mappingplace].history;
+	bool prediction = ((*BP_Table).fsm[mappingplace] + offset);
 
 	if (prediction)
 	{
-		*dst = BP_Table[mappingplace].target;
+		*dst = (*BP_Table).BTBTable[mappingplace].target;
 		return true;
 	}
 	return false;
+	
 }
+
 
 void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst)
 {
-	int size = log2(BP_Table.btbSize_);
+	int size = (int)log2((*BP_Table).btbSize_);
 	int mappingplace = bitExtracted(pc, size, 3);
-	if (!BP_Table.BTBTable[mappingplace].validbit)
+	if (!(*BP_Table).BTBTable[mappingplace].validbit)
 	{
-		BP_Table.BTBTable[mappingplace].validbit = 1;
-		if (taken) BP_Table.BTBTable[mappingplace].history++;
-		else BP_Table.BTBTable[mappingplace].history = 0;
-		BP_Table.BTBTable[mappingplace].tag = bitExtracted(pc, BP_Table.tagSize_, 3 + size);
-		BP_Table.BTBTable[mappingplace].target = targetPc;
+		(*BP_Table).BTBTable[mappingplace].validbit = 1;
+		if (taken) (*BP_Table).BTBTable[mappingplace].history++;
+		else (*BP_Table).BTBTable[mappingplace].history = 0;
+		(*BP_Table).BTBTable[mappingplace].tag = bitExtracted(pc, (*BP_Table).tagSize_, 3 + size);
+		(*BP_Table).BTBTable[mappingplace].target = targetPc;
 	}
 	else
 	{
-		if (BP_Table.BTBTable[mappingplace].tag == bitExtracted(pc, BP_Table.tagSize_, 3 + size))
+		if ((*BP_Table).BTBTable[mappingplace].tag == bitExtracted(pc, (*BP_Table).tagSize_, 3 + size))
 		{
-			BP_Table->updatefsm(mappingplace, taken);
+			(*BP_Table).updatefsm(mappingplace, taken);
 			if (taken)
 			{
-				BP_Table.BTBTable[mappingplace].history = BP_Table.BTBTable[mappingplace].history * 2 + 1;
+				(*BP_Table).BTBTable[mappingplace].history = (*BP_Table).BTBTable[mappingplace].history * 2 + 1;
 			}
 			else
 			{
-				BP_Table.BTBTable[mappingplace].history = BP_Table.BTBTable[mappingplace].history * 2;
+				(*BP_Table).BTBTable[mappingplace].history = (*BP_Table).BTBTable[mappingplace].history * 2;
 			}
-			BP_Table.BTBTable[mappingplace].history = BP_Table.BTBTable[mappingplace].history % (pow(2, BP_Table.historySize_));
+			(*BP_Table).BTBTable[mappingplace].history = (*BP_Table).BTBTable[mappingplace].history % (int)(pow(2, (*BP_Table).historySize_));
 		}
 		else
 		{
-			BP_Table.BTBTable[mappingplace].history = taken ? 1 : 0;
-			for (int i = 0; i < pow(2, BP_Table.historySize_); i++)
+			(*BP_Table).BTBTable[mappingplace].history = taken ? 1 : 0;
+			for (int i = 0; i < (int)pow(2, (*BP_Table).historySize_); i++)
 			{
-				BP_Table.fsm[mappingplace][i] = BP_Table.fsmState_;
+				(*BP_Table).fsm[mappingplace][i] = (*BP_Table).fsmState_;
 			}
-			BP_Table.BTBTable[mappingplace].tag = bitExtracted(pc, BP_Table.tagSize_, 3 + size);
-			BP_Table.BTBTable[mappingplace].target = targetPc;
+			(*BP_Table).BTBTable[mappingplace].tag = bitExtracted(pc, (*BP_Table).tagSize_, 3 + size);
+			(*BP_Table).BTBTable[mappingplace].target = targetPc;
 		}
 	}
 	return;
