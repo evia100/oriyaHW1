@@ -7,6 +7,9 @@
 using namespace std;
 class BTB;
 BTB* BP_Table;
+int calls = 0;
+int flushes = 0;
+
 
 int bitExtracted(int number, int k, int p)
 {
@@ -39,7 +42,7 @@ public:
 		int** fsm = new int* [btbSize_];
 		for (int j = 0; j < btbSize_; j++)
 		{
-			fsm[j] = new int[pow(2, historySize_)];
+			fsm[j] = new int[(int)pow(2, historySize_)];
 			for (int i = 0; i < pow(2, btbSize_); i++)
 			{
 				fsm[j][i] = fsmState_;
@@ -99,7 +102,7 @@ int BP_init(unsigned btbSize, unsigned historySize, unsigned tagSize, unsigned f
 
 bool BP_predict(uint32_t pc, uint32_t* dst)
 {
-	int mappingplace = bitExtracted(pc, log2((*BP_Table).btbSize_), 3);
+	int mappingplace = bitExtracted(pc, (int)log2((*BP_Table).btbSize_), 3);
 	if (!(*BP_Table).BTBTable[mappingplace].validbit)
 	{
 		*dst = pc + 4; //check
@@ -121,6 +124,7 @@ bool BP_predict(uint32_t pc, uint32_t* dst)
 
 void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst)
 {
+	calls++;
 	int size = (int)log2((*BP_Table).btbSize_);
 	int mappingplace = bitExtracted(pc, size, 3);
 	if (!(*BP_Table).BTBTable[mappingplace].validbit)
@@ -135,6 +139,10 @@ void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst)
 	{
 		if ((*BP_Table).BTBTable[mappingplace].tag == bitExtracted(pc, (*BP_Table).tagSize_, 3 + size))
 		{
+			if (BP_predict(pc, &pred_dst) == taken)
+			{
+				flushes++;
+			}
 			(*BP_Table).updatefsm(mappingplace, taken);
 			if (taken)
 			{
@@ -160,7 +168,14 @@ void BP_update(uint32_t pc, uint32_t targetPc, bool taken, uint32_t pred_dst)
 	return;
 }
 
-void BP_GetStats(SIM_stats* curStats) {
+void BP_GetStats(SIM_stats* curStats) 
+{
+	curStats->br_num = calls;
+	curStats->flush_num = flushes;
+	curStats->size = 0;
+	delete(BP_Table);
+
+
 	return;
 }
 
